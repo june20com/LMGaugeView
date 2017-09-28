@@ -103,6 +103,9 @@ IB_DESIGNABLE
  */
 @property (nonatomic, strong) IBInspectable UIColor *valueTextColor;
 
+/// The formatter used to display the current value.
+@property (nonatomic) NSNumberFormatter *valueFormatter;
+
 /*!
  *  A boolean indicates whether to show min/max value.
  */

@@ -114,6 +114,9 @@
     
     // Value Text
     _valueFont = kDefaultValueFont;
+    _valueFormatter = [[NSNumberFormatter alloc] init];
+    _valueFormatter.numberStyle = NSNumberFormatterDecimalStyle;
+
     _valueTextColor = kDefaultValueTextColor;
     _showMinMaxValue = YES;
     _minMaxValueFont = kDefaultMinMaxValueFont;
@@ -360,7 +363,7 @@
     /*!
      *  Set text for value label
      */
-    self.valueLabel.text = [NSString stringWithFormat:@"%0.f", _value];
+    self.valueLabel.text = [_valueFormatter stringFromNumber:@(value)];
 
     /*!
      *  Trigger the stoke animation of ring layer.
