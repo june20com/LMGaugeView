@@ -1,5 +1,7 @@
 LMGaugeView
 ==============
+This version of LMGaugeView is a custom June20 fork that is used by the Motion repository. For fork adds a `NSNumberFormatter` property to allow customization of the numeric reading in the middle of the gauge.
+
 LMGaugeView is a simple and customizable gauge control for iOS inspired by [Flavor](https://dribbble.com/flavor) sketch on [Dribbble](https://dribbble.com/shots/1217274-Speedometer-Day-Night-Mode).
 
 <img src="https://raw.github.com/lminhtm/LMGaugeView/master/Screenshots/screenshot1.png"/>
@@ -53,6 +55,7 @@ You can customize the following properties of LMGaugeView:
 @property (nonatomic, strong) UIColor *limitDotColor;
 @property (nonatomic, strong) UIFont *valueFont;
 @property (nonatomic, strong) UIColor *valueTextColor;
+@property (nonatomic) NSNumberFormatter *valueFormatter;
 @property (nonatomic, assign) BOOL showUnitOfMeasurement;
 @property (nonatomic, copy)   NSString *unitOfMeasurement;
 @property (nonatomic, strong) UIFont *unitOfMeasurementFont;
@@ -71,5 +74,4 @@ Minh Luong Nguyen
 ## Projects using LMGaugeView
 Feel free to add your project [here](https://github.com/lminhtm/LMGaugeView/wiki/Projects-using-LMGaugeView)
 
-## Donations
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=J3WZJT2AD28NW&lc=VN&item_name=LMGaugeView&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted)
+
