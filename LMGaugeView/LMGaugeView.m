@@ -30,13 +30,12 @@
 #define kDefaultLimitDotRadius                  2
 #define kDefaultLimitDotColor                   [UIColor redColor]
 
-#define kDefaultValueFont                       [UIFont fontWithName:@"HelveticaNeue-CondensedBold" size:140]
 #define kDefaultValueTextColor                  [UIColor colorWithWhite:0.1 alpha:1]
 #define kDefaultMinMaxValueFont                 [UIFont fontWithName:@"HelveticaNeue" size:12]
 #define kDefaultMinMaxValueTextColor            [UIColor colorWithWhite:0.3 alpha:1]
 
 #define kDefaultUnitOfMeasurement               @"km/h"
-#define kDefaultUnitOfMeasurementFont           [UIFont fontWithName:@"HelveticaNeue-CondensedBold" size:16]
+#define kDefaultUnitOfMeasurementFont           [UIFont boldSystemFontOfSize:10]
 #define kDefaultUnitOfMeasurementTextColor      [UIColor colorWithWhite:0.3 alpha:1]
 
 @interface LMGaugeView ()
@@ -57,7 +56,7 @@
 
 @implementation LMGaugeView
 
-#pragma mark - INIT
+#pragma mark - UIView
 
 - (id)initWithFrame:(CGRect)frame
 {
@@ -79,6 +78,8 @@
 
 - (void)initialize
 {
+    self.contentMode = UIViewContentModeRedraw;
+    
     if (!self.backgroundColor) {
         self.backgroundColor = [UIColor clearColor];
     }
@@ -91,6 +92,7 @@
     _minValue = kDefaultMinValue;
     _maxValue = kDefaultMaxValue;
     _limitValue = kDefaultLimitValue;
+    _fillRing = YES;
     _numOfDivisions = kDefaultNumOfDivisions;
     _numOfSubDivisions = kDefaultNumOfSubDivisions;
     
@@ -113,7 +115,8 @@
     _limitDotColor = kDefaultLimitDotColor;
     
     // Value Text
-    _valueFont = kDefaultValueFont;
+    _valueFont = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightBold];
+
     _valueFormatter = [[NSNumberFormatter alloc] init];
     _valueFormatter.numberStyle = NSNumberFormatterDecimalStyle;
 
@@ -127,6 +130,56 @@
     _unitOfMeasurement = kDefaultUnitOfMeasurement;
     _unitOfMeasurementFont = kDefaultUnitOfMeasurementFont;
     _unitOfMeasurementTextColor = kDefaultUnitOfMeasurementTextColor;
+
+    // Value label
+    _valueLabel = [[UILabel alloc] init];
+    _valueLabel.backgroundColor = [UIColor clearColor];
+    _valueLabel.textAlignment = NSTextAlignmentCenter;
+    _valueLabel.text = [_valueFormatter stringFromNumber:@(_value)];
+    _valueLabel.font = _valueFont;
+    _valueLabel.adjustsFontSizeToFitWidth = NO;
+    _valueLabel.textColor = _valueTextColor;
+    [self addSubview:_valueLabel];
+
+    // Unit of measurement label
+    _unitOfMeasurementLabel = [[UILabel alloc] init];
+    _unitOfMeasurementLabel.backgroundColor = [UIColor clearColor];
+    _unitOfMeasurementLabel.textAlignment = NSTextAlignmentCenter;
+    _unitOfMeasurementLabel.text = _unitOfMeasurement;
+    _unitOfMeasurementLabel.font = _unitOfMeasurementFont;
+    _unitOfMeasurementLabel.adjustsFontSizeToFitWidth = YES;
+    _unitOfMeasurementLabel.minimumScaleFactor = 0.8f;
+    _unitOfMeasurementLabel.textColor = _unitOfMeasurementTextColor;
+    _unitOfMeasurementLabel.hidden = !_showUnitOfMeasurement;
+    [self addSubview:_unitOfMeasurementLabel];
+
+    // Min/max value labels
+    _minValueLabel = [[UILabel alloc] init];
+    _minValueLabel.backgroundColor = [UIColor clearColor];
+    _minValueLabel.textAlignment = NSTextAlignmentLeft;
+    _minValueLabel.text = [_valueFormatter stringFromNumber:@(_minValue)];
+    _minValueLabel.font = _minMaxValueFont;
+    _minValueLabel.textColor = _minMaxValueTextColor;
+    _minValueLabel.hidden = !_showMinMaxValue;
+    [self addSubview:_minValueLabel];
+
+    _maxValueLabel = [[UILabel alloc] init];
+    _maxValueLabel.backgroundColor = [UIColor clearColor];
+    _maxValueLabel.textAlignment = NSTextAlignmentRight;
+    _maxValueLabel.text = [_valueFormatter stringFromNumber:@(_maxValue)];
+    _maxValueLabel.font = _minMaxValueFont;
+    _maxValueLabel.textColor = _minMaxValueTextColor;
+    _maxValueLabel.hidden = !_showMinMaxValue;
+    [self addSubview:_maxValueLabel];
+
+    _progressLayer = [CAShapeLayer layer];
+    _progressLayer.contentsScale = [[UIScreen mainScreen] scale];
+    _progressLayer.fillColor = [UIColor clearColor].CGColor;
+    _progressLayer.lineCap = kCALineJoinBevel;
+    _progressLayer.lineJoin = kCALineJoinBevel;
+    _progressLayer.strokeEnd = 0;
+    _progressLayer.lineWidth = _ringThickness;
+    [self.layer addSublayer:_progressLayer];
 }
 
 
@@ -137,206 +190,145 @@
     /*!
      *  Set progress for ring layer
      */
-    CGFloat progress = self.maxValue ? (self.value - self.minValue)/(self.maxValue - self.minValue) : 0;
+    CGFloat progress = _maxValue ? (_value - _minValue)/(_maxValue - _minValue) : 0;
 
     if (_fillRing)
-        self.progressLayer.strokeEnd = progress;
+        _progressLayer.strokeEnd = progress;
     else
     {
         const CGFloat delta = 0.05;
-        self.progressLayer.strokeStart = progress-delta;
-        self.progressLayer.strokeEnd = progress+delta;
+        _progressLayer.strokeStart = progress-delta;
+        _progressLayer.strokeEnd = progress+delta;
     }
 
     /*!
      *  Set ring stroke color
      */
     UIColor *ringColor = kDefaultRingColor;
-    if (self.delegate && [self.delegate respondsToSelector:@selector(gaugeView:ringStokeColorForValue:)]) {
-        ringColor = [self.delegate gaugeView:self ringStokeColorForValue:self.value];
+    if (_delegate && [_delegate respondsToSelector:@selector(gaugeView:ringStokeColorForValue:)]) {
+        ringColor = [_delegate gaugeView:self ringStokeColorForValue:_value];
     }
-    self.progressLayer.strokeColor = ringColor.CGColor;
+    _progressLayer.strokeColor = ringColor.CGColor;
 }
 
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+
+    CGRect bounds = self.bounds;
+    CGPoint center = CGPointMake(CGRectGetWidth(bounds)/2, CGRectGetHeight(bounds)/2);
+    CGFloat ringRadius = MIN(CGRectGetWidth(bounds), CGRectGetHeight(bounds))/2 - _ringThickness/2;
+
+    _progressLayer.frame = CGRectMake(center.x - ringRadius - _ringThickness/2,
+                                      center.y - ringRadius - _ringThickness/2,
+                                      (ringRadius + _ringThickness/2) * 2,
+                                      (ringRadius + _ringThickness/2) * 2);
+    _progressLayer.bounds = _progressLayer.frame;
+    UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:_progressLayer.position
+                                                                radius:ringRadius
+                                                            startAngle:_startAngle
+                                                              endAngle:_endAngle
+                                                             clockwise:YES];
+    _progressLayer.path = arcPath.CGPath;
+
+    // Layout _valueLabel
+    CGFloat insetX = _numOfDivisions == 0 ? _divisionsPadding : _ringThickness + _divisionsPadding * 2 + _divisionsRadius;
+    CGRect valueLabelFrame = CGRectInset(_progressLayer.frame, insetX, insetX);
+    valueLabelFrame = CGRectOffset(valueLabelFrame, 0, _showUnitOfMeasurement ? -_divisionsPadding/2 : 0);
+    _valueLabel.frame = valueLabelFrame;
+
+    // Layout _minValueLabel
+    CGFloat dotRadius = ringRadius - _ringThickness/2 - _divisionsPadding - _divisionsRadius/2;
+
+    CGPoint minDotCenter = CGPointMake(dotRadius * cos(_startAngle) + center.x, dotRadius * sin(_startAngle) + center.y);
+    _minValueLabel.frame = CGRectMake(minDotCenter.x + 8, minDotCenter.y - 20, 40, 20);
+
+    // Layout maxValueLabel
+    CGPoint maxDotCenter = CGPointMake(dotRadius * cos(_endAngle) + center.x, dotRadius * sin(_endAngle) + center.y);
+    _maxValueLabel.frame = CGRectMake(maxDotCenter.x - 8 - 40, maxDotCenter.y - 20, 40, 20);
+
+    _unitOfMeasurementLabel.frame = CGRectMake(valueLabelFrame.origin.x,
+                                               valueLabelFrame.origin.y + CGRectGetHeight(valueLabelFrame) - 10,
+                                               CGRectGetWidth(valueLabelFrame),
+                                               20);
+
+
+}
 
 #pragma mark - CUSTOM DRAWING
 
 - (void)drawRect:(CGRect)rect
 {
-    /*!
-     *  Prepare drawing
-     */
-    self.divisionUnitValue = self.numOfDivisions ? (self.maxValue - self.minValue)/self.numOfDivisions : 0;
-    self.divisionUnitAngle = self.numOfDivisions ? ABS(self.endAngle - self.startAngle)/self.numOfDivisions : 0;
-    CGPoint center = CGPointMake(CGRectGetWidth(self.bounds)/2, CGRectGetHeight(self.bounds)/2);
-    CGFloat ringRadius = MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds))/2 - self.ringThickness/2;
-    CGFloat dotRadius = ringRadius - self.ringThickness/2 - self.divisionsPadding - self.divisionsRadius/2;
+     CGRect bounds = self.bounds;
+
+     // Prepare drawing
+    _divisionUnitValue = _numOfDivisions ? (_maxValue - _minValue)/_numOfDivisions : 0;
+    _divisionUnitAngle = _numOfDivisions ? ABS(_endAngle - _startAngle)/_numOfDivisions : 0;
+    CGPoint center = CGPointMake(CGRectGetWidth(bounds)/2, CGRectGetHeight(bounds)/2);
+    CGFloat ringRadius = MIN(CGRectGetWidth(bounds), CGRectGetHeight(bounds))/2 - _ringThickness/2;
+    CGFloat dotRadius = ringRadius - _ringThickness/2 - _divisionsPadding - _divisionsRadius/2;
     CGContextRef context = UIGraphicsGetCurrentContext();
     
     /*!
      *  Draw the ring background
      */
-    CGContextSetLineWidth(context, self.ringThickness);
+    CGContextSetLineWidth(context, _ringThickness);
     CGContextBeginPath(context);
     CGContextAddArc(context, center.x, center.y, ringRadius, 0, M_PI * 2, 0);
-    CGContextSetStrokeColorWithColor(context, [self.ringBackgroundColor colorWithAlphaComponent:0.3].CGColor);
+    CGContextSetStrokeColorWithColor(context, [_ringBackgroundColor colorWithAlphaComponent:0.3].CGColor);
     CGContextStrokePath(context);
     
     /*!
      *  Draw the ring progress background
      */
-    CGContextSetLineWidth(context, self.ringThickness);
+    CGContextSetLineWidth(context, _ringThickness);
     CGContextBeginPath(context);
-    CGContextAddArc(context, center.x, center.y, ringRadius, self.startAngle, self.endAngle, 0);
-    CGContextSetStrokeColorWithColor(context, self.ringBackgroundColor.CGColor);
+    CGContextAddArc(context, center.x, center.y, ringRadius, _startAngle, _endAngle, 0);
+    CGContextSetStrokeColorWithColor(context, _ringBackgroundColor.CGColor);
     CGContextStrokePath(context);
     
     /*!
      *  Draw divisions and subdivisions
      */
-    for (int i = 0; i <= self.numOfDivisions && self.numOfDivisions != 0; i++)
+    for (int i = 0; i <= _numOfDivisions && _numOfDivisions != 0; i++)
     {
-        if (i != self.numOfDivisions)
+        if (i != _numOfDivisions)
         {
-            for (int j = 0; j <= self.numOfSubDivisions && self.numOfSubDivisions != 0; j++)
+            for (int j = 0; j <= _numOfSubDivisions && _numOfSubDivisions != 0; j++)
             {
                 // Subdivisions
-                CGFloat value = i * self.divisionUnitValue + j * self.divisionUnitValue/self.numOfSubDivisions + self.minValue;
+                CGFloat value = i * _divisionUnitValue + j * _divisionUnitValue/_numOfSubDivisions + _minValue;
                 CGFloat angle = [self angleFromValue:value];
                 CGPoint dotCenter = CGPointMake(dotRadius * cos(angle) + center.x, dotRadius * sin(angle) + center.y);
                 [self drawDotAtContext:context
                                 center:dotCenter
-                                radius:self.subDivisionsRadius
-                             fillColor:self.subDivisionsColor.CGColor];
+                                radius:_subDivisionsRadius
+                             fillColor:_subDivisionsColor.CGColor];
             }
         }
         
         // Divisions
-        CGFloat value = i * self.divisionUnitValue + self.minValue;
+        CGFloat value = i * _divisionUnitValue + _minValue;
         CGFloat angle = [self angleFromValue:value];
         CGPoint dotCenter = CGPointMake(dotRadius * cos(angle) + center.x, dotRadius * sin(angle) + center.y);
         [self drawDotAtContext:context
                         center:dotCenter
-                        radius:self.divisionsRadius
-                     fillColor:self.divisionsColor.CGColor];
+                        radius:_divisionsRadius
+                     fillColor:_divisionsColor.CGColor];
     }
     
     /*!
      *  Draw the limit dot
      */
-    if (self.showLimitDot && self.numOfDivisions != 0)
+    if (_showLimitDot && _numOfDivisions != 0)
     {
-        CGFloat angle = [self angleFromValue:self.limitValue];
+        CGFloat angle = [self angleFromValue:_limitValue];
         CGPoint dotCenter = CGPointMake(dotRadius * cos(angle) + center.x, dotRadius * sin(angle) + center.y);
         [self drawDotAtContext:context
                         center:dotCenter
-                        radius:self.limitDotRadius
-                     fillColor:self.limitDotColor.CGColor];
+                        radius:_limitDotRadius
+                     fillColor:_limitDotColor.CGColor];
     }
-    
-    /*!
-     *  Progress Layer
-     */
-    if (!self.progressLayer)
-    {
-        self.progressLayer = [CAShapeLayer layer];
-        self.progressLayer.contentsScale = [[UIScreen mainScreen] scale];
-        self.progressLayer.fillColor = [UIColor clearColor].CGColor;
-        self.progressLayer.lineCap = kCALineJoinBevel;
-        self.progressLayer.lineJoin = kCALineJoinBevel;
-        [self.layer addSublayer:self.progressLayer];
-        self.progressLayer.strokeEnd = 0;
-    }
-    self.progressLayer.frame = CGRectMake(center.x - ringRadius - self.ringThickness/2,
-                                          center.y - ringRadius - self.ringThickness/2,
-                                          (ringRadius + self.ringThickness/2) * 2,
-                                          (ringRadius + self.ringThickness/2) * 2);
-    self.progressLayer.bounds = self.progressLayer.frame;
-    UIBezierPath *smoothedPath = [UIBezierPath bezierPathWithArcCenter:self.progressLayer.position
-                                                                radius:ringRadius
-                                                            startAngle:self.startAngle
-                                                              endAngle:self.endAngle
-                                                             clockwise:YES];
-    self.progressLayer.path = smoothedPath.CGPath;
-    self.progressLayer.lineWidth = self.ringThickness;
-    
-    /*!
-     *  Value Label
-     */
-    if (!self.valueLabel)
-    {
-        self.valueLabel = [[UILabel alloc] init];
-        self.valueLabel.backgroundColor = [UIColor clearColor];
-        self.valueLabel.textAlignment = NSTextAlignmentCenter;
-        self.valueLabel.text = [NSString stringWithFormat:@"%0.f", self.value];
-        self.valueLabel.font = self.valueFont;
-        self.valueLabel.adjustsFontSizeToFitWidth = YES;
-        self.valueLabel.minimumScaleFactor = 10/self.valueLabel.font.pointSize;
-        self.valueLabel.textColor = self.valueTextColor;
-        [self addSubview:self.valueLabel];
-    }
-    CGFloat insetX = self.ringThickness + self.divisionsPadding * 2 + self.divisionsRadius;
-    self.valueLabel.frame = CGRectInset(self.progressLayer.frame, insetX, insetX);
-    self.valueLabel.frame = CGRectOffset(self.valueLabel.frame, 0, self.showUnitOfMeasurement ? -self.divisionsPadding/2 : 0);
-    
-    /*!
-     *  Min Value Label
-     */
-    if (!self.minValueLabel)
-    {
-        self.minValueLabel = [[UILabel alloc] init];
-        self.minValueLabel.backgroundColor = [UIColor clearColor];
-        self.minValueLabel.textAlignment = NSTextAlignmentLeft;
-        self.minValueLabel.adjustsFontSizeToFitWidth = YES;
-        [self addSubview:self.minValueLabel];
-    }
-    self.minValueLabel.text = [NSString stringWithFormat:@"%0.f", self.minValue];
-    self.minValueLabel.font = self.minMaxValueFont;
-    self.minValueLabel.minimumScaleFactor = 10/self.minValueLabel.font.pointSize;
-    self.minValueLabel.textColor = self.minMaxValueTextColor;
-    self.minValueLabel.hidden = !self.showMinMaxValue;
-    CGPoint minDotCenter = CGPointMake(dotRadius * cos(self.startAngle) + center.x, dotRadius * sin(self.startAngle) + center.y);
-    self.minValueLabel.frame = CGRectMake(minDotCenter.x + 8, minDotCenter.y - 20, 40, 20);
-    
-    /*!
-     *  Max Value Label
-     */
-    if (!self.maxValueLabel)
-    {
-        self.maxValueLabel = [[UILabel alloc] init];
-        self.maxValueLabel.backgroundColor = [UIColor clearColor];
-        self.maxValueLabel.textAlignment = NSTextAlignmentRight;
-        self.maxValueLabel.adjustsFontSizeToFitWidth = YES;
-        [self addSubview:self.maxValueLabel];
-    }
-    self.maxValueLabel.text = [NSString stringWithFormat:@"%0.f", self.maxValue];
-    self.maxValueLabel.font = self.minMaxValueFont;
-    self.maxValueLabel.minimumScaleFactor = 10/self.maxValueLabel.font.pointSize;
-    self.maxValueLabel.textColor = self.minMaxValueTextColor;
-    self.maxValueLabel.hidden = !self.showMinMaxValue;
-    CGPoint maxDotCenter = CGPointMake(dotRadius * cos(self.endAngle) + center.x, dotRadius * sin(self.endAngle) + center.y);
-    self.maxValueLabel.frame = CGRectMake(maxDotCenter.x - 8 - 40, maxDotCenter.y - 20, 40, 20);
-    
-    /*!
-     *  Unit Of Measurement Label
-     */
-    if (!self.unitOfMeasurementLabel)
-    {
-        self.unitOfMeasurementLabel = [[UILabel alloc] init];
-        self.unitOfMeasurementLabel.backgroundColor = [UIColor clearColor];
-        self.unitOfMeasurementLabel.textAlignment = NSTextAlignmentCenter;
-        self.unitOfMeasurementLabel.text = self.unitOfMeasurement;
-        self.unitOfMeasurementLabel.font = self.unitOfMeasurementFont;
-        self.unitOfMeasurementLabel.adjustsFontSizeToFitWidth = YES;
-        self.unitOfMeasurementLabel.minimumScaleFactor = 10/self.unitOfMeasurementLabel.font.pointSize;
-        self.unitOfMeasurementLabel.textColor = self.unitOfMeasurementTextColor;
-        [self addSubview:self.unitOfMeasurementLabel];
-        self.unitOfMeasurementLabel.hidden = !self.showUnitOfMeasurement;
-    }
-    self.unitOfMeasurementLabel.frame = CGRectMake(self.valueLabel.frame.origin.x,
-                                                   self.valueLabel.frame.origin.y + CGRectGetHeight(self.valueLabel.frame) - 10,
-                                                   CGRectGetWidth(self.valueLabel.frame),
-                                                   20);
 }
 
 
@@ -344,8 +336,8 @@
 
 - (CGFloat)angleFromValue:(CGFloat)value
 {
-    CGFloat level = self.divisionUnitValue ? (value - self.minValue)/self.divisionUnitValue : 0;
-    CGFloat angle = level * self.divisionUnitAngle + self.startAngle;
+    CGFloat level = _divisionUnitValue ? (value - _minValue)/_divisionUnitValue : 0;
+    CGFloat angle = level * _divisionUnitAngle + _startAngle;
     return angle;
 }
 
@@ -371,7 +363,7 @@
     /*!
      *  Set text for value label
      */
-    self.valueLabel.text = [_valueFormatter stringFromNumber:@(value)];
+    _valueLabel.text = [_valueFormatter stringFromNumber:@(value)];
 
     /*!
      *  Trigger the stoke animation of ring layer.
@@ -383,7 +375,6 @@
 {
     if (_minValue != minValue && minValue < _maxValue) {
         _minValue = minValue;
-        
         [self setNeedsDisplay];
     }
 }
@@ -392,7 +383,6 @@
 {
     if (_maxValue != maxValue && maxValue > _minValue) {
         _maxValue = maxValue;
-        
         [self setNeedsDisplay];
     }
 }
@@ -401,7 +391,6 @@
 {
     if (_limitValue != limitValue && limitValue >= _minValue && limitValue <= _maxValue) {
         _limitValue = limitValue;
-        
         [self setNeedsDisplay];
     }
 }
@@ -410,7 +399,6 @@
 {
     if (_numOfDivisions != numOfDivisions) {
         _numOfDivisions = numOfDivisions;
-        
         [self setNeedsDisplay];
     }
 }
@@ -419,7 +407,6 @@
 {
     if (_numOfSubDivisions != numOfSubDivisions) {
         _numOfSubDivisions = numOfSubDivisions;
-        
         [self setNeedsDisplay];
     }
 }
@@ -428,7 +415,7 @@
 {
     if (_ringThickness != ringThickness) {
         _ringThickness = ringThickness;
-        
+        _progressLayer.lineWidth = _ringThickness;
         [self setNeedsDisplay];
     }
 }
@@ -437,7 +424,6 @@
 {
     if (_ringBackgroundColor != ringBackgroundColor) {
         _ringBackgroundColor = ringBackgroundColor;
-        
         [self setNeedsDisplay];
     }
 }
@@ -446,7 +432,6 @@
 {
     if (_divisionsRadius != divisionsRadius) {
         _divisionsRadius = divisionsRadius;
-        
         [self setNeedsDisplay];
     }
 }
@@ -455,7 +440,6 @@
 {
     if (_divisionsColor != divisionsColor) {
         _divisionsColor = divisionsColor;
-        
         [self setNeedsDisplay];
     }
 }
@@ -464,7 +448,6 @@
 {
     if (_divisionsPadding != divisionsPadding) {
         _divisionsPadding = divisionsPadding;
-        
         [self setNeedsDisplay];
     }
 }
@@ -473,7 +456,6 @@
 {
     if (_subDivisionsRadius != subDivisionsRadius) {
         _subDivisionsRadius = subDivisionsRadius;
-        
         [self setNeedsDisplay];
     }
 }
@@ -482,7 +464,6 @@
 {
     if (_subDivisionsColor != subDivisionsColor) {
         _subDivisionsColor = subDivisionsColor;
-        
         [self setNeedsDisplay];
     }
 }
@@ -491,7 +472,6 @@
 {
     if (_showLimitDot != showLimitDot) {
         _showLimitDot = showLimitDot;
-        
         [self setNeedsDisplay];
     }
 }
@@ -500,7 +480,6 @@
 {
     if (_limitDotRadius != limitDotRadius) {
         _limitDotRadius = limitDotRadius;
-        
         [self setNeedsDisplay];
     }
 }
@@ -509,7 +488,6 @@
 {
     if (_limitDotColor != limitDotColor) {
         _limitDotColor = limitDotColor;
-        
         [self setNeedsDisplay];
     }
 }
@@ -518,9 +496,7 @@
 {
     if (_valueFont != valueFont) {
         _valueFont = valueFont;
-        
-        self.valueLabel.font = _valueFont;
-        self.valueLabel.minimumScaleFactor = 10/_valueFont.pointSize;
+        _valueLabel.font = _valueFont;
     }
 }
 
@@ -528,8 +504,8 @@
 {
     if (_valueTextColor != valueTextColor) {
         _valueTextColor = valueTextColor;
-        
-        self.valueLabel.textColor = _valueTextColor;
+
+        _valueLabel.textColor = _valueTextColor;
     }
 }
 
@@ -537,8 +513,8 @@
 {
     if (_showMinMaxValue != showMinMaxValue) {
         _showMinMaxValue = showMinMaxValue;
-        
-        [self setNeedsDisplay];
+        _minValueLabel.hidden = !showMinMaxValue;
+        _maxValueLabel.hidden = !showMinMaxValue;
     }
 }
 
@@ -546,8 +522,8 @@
 {
     if (_minMaxValueFont != minMaxValueFont) {
         _minMaxValueFont = minMaxValueFont;
-        
-        [self setNeedsDisplay];
+        _minValueLabel.font = minMaxValueFont;
+        _maxValueLabel.font = minMaxValueFont;
     }
 }
 
@@ -555,8 +531,8 @@
 {
     if (_minMaxValueTextColor != minMaxValueTextColor) {
         _minMaxValueTextColor = minMaxValueTextColor;
-        
-        [self setNeedsDisplay];
+        _minValueLabel.textColor = minMaxValueTextColor;
+        _maxValueLabel.textColor = minMaxValueTextColor;
     }
 }
 
@@ -564,8 +540,7 @@
 {
     if (_showUnitOfMeasurement != showUnitOfMeasurement) {
         _showUnitOfMeasurement = showUnitOfMeasurement;
-        
-        self.unitOfMeasurementLabel.hidden = !_showUnitOfMeasurement;
+        _unitOfMeasurementLabel.hidden = !_showUnitOfMeasurement;
     }
 }
 
@@ -573,8 +548,7 @@
 {
     if (_unitOfMeasurement != unitOfMeasurement) {
         _unitOfMeasurement = unitOfMeasurement;
-        
-        self.unitOfMeasurementLabel.text = _unitOfMeasurement;
+        _unitOfMeasurementLabel.text = _unitOfMeasurement;
     }
 }
 
@@ -582,9 +556,7 @@
 {
     if (_unitOfMeasurementFont != unitOfMeasurementFont) {
         _unitOfMeasurementFont = unitOfMeasurementFont;
-        
-        self.unitOfMeasurementLabel.font = _unitOfMeasurementFont;
-        self.unitOfMeasurementLabel.minimumScaleFactor = 10/_unitOfMeasurementFont.pointSize;
+        _unitOfMeasurementLabel.font = _unitOfMeasurementFont;
     }
 }
 
@@ -592,8 +564,7 @@
 {
     if (_unitOfMeasurementTextColor != unitOfMeasurementTextColor) {
         _unitOfMeasurementTextColor = unitOfMeasurementTextColor;
-        
-        self.unitOfMeasurementLabel.textColor = _unitOfMeasurementTextColor;
+        _unitOfMeasurementLabel.textColor = _unitOfMeasurementTextColor;
     }
 }
 
