@@ -33,6 +33,10 @@ IB_DESIGNABLE
  */
 @property (nonatomic, assign) CGFloat limitValue;
 
+/// When fillRing is YES, the gauge is filled from the minimum value to the current value.
+/// Otherwise, only the current value is marked. The default value is YES.
+@property (nonatomic) BOOL fillRing;
+
 /*!
  *  The number of divisions.
  */

@@ -138,8 +138,16 @@
      *  Set progress for ring layer
      */
     CGFloat progress = self.maxValue ? (self.value - self.minValue)/(self.maxValue - self.minValue) : 0;
-    self.progressLayer.strokeEnd = progress;
-    
+
+    if (_fillRing)
+        self.progressLayer.strokeEnd = progress;
+    else
+    {
+        const CGFloat delta = 0.05;
+        self.progressLayer.strokeStart = progress-delta;
+        self.progressLayer.strokeEnd = progress+delta;
+    }
+
     /*!
      *  Set ring stroke color
      */
